@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg-page: #FAFAF8;
+  --color-surface: #FFFFFF;
+  --color-border: #E5E3DD;
+  --color-text-primary: #1A1A18;
+  --color-text-secondary: #6B6A63;
+  --color-text-muted: #A3A199;
+  --color-accent: #0F6E56;
+  --color-accent-hover: #0C5744;
+  --color-accent-muted: #E1F5EE;
+  --color-danger: #A32D2D;
+  --color-danger-bg: #FCEBEB;
+  --color-warning: #854F0B;
+  --color-warning-bg: #FAEEDA;
+  --color-neutral-chart: #B4B2A9;
+}
+
+[data-theme="dark"] {
+  --color-bg-page: #121210;
+  --color-surface: #1C1C1A;
+  --color-border: #2E2E2A;
+  --color-text-primary: #F0F0EC;
+  --color-text-secondary: #A3A199;
+  --color-text-muted: #6B6A63;
+  --color-accent: #2FAE8A;
+  --color-accent-hover: #4BC9A4;
+  --color-accent-muted: #1A3D32;
+  --color-danger: #E06060;
+  --color-danger-bg: #3A1A1A;
+  --color-warning: #D4A03A;
+  --color-warning-bg: #3A2A10;
+  --color-neutral-chart: #6B6A63;
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+  background-color: var(--color-bg-page);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Recharts overrides for dark mode */
+[data-theme="dark"] .recharts-cartesian-grid-horizontal line,
+[data-theme="dark"] .recharts-cartesian-grid-vertical line {
+  stroke: var(--color-border);
+}
+[data-theme="dark"] .recharts-text {
+  fill: var(--color-text-secondary);
+}

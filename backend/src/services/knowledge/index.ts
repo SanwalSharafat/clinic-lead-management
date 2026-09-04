@@ -1,0 +1,1 @@
+export { KnowledgeService } from './knowledgeService';
