@@ -148,7 +148,7 @@ npm start      # Production (runs compiled dist/app.js)
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/webhook/whatsapp` | WhatsApp webhook verification (responds with challenge token) |
-| POST | `/webhook/whatsapp` | Incoming WhatsApp message — triggers extraction, scoring, routing |
+| POST | `/webhook/whatsapp` | Incoming WhatsApp message — triggers extraction, scoring, routing, and continues automated replies while a human review is open |
 | POST | `/webhook/form` | Web form submission — same pipeline as WhatsApp, from a web form |
 
 ### Human Reviews

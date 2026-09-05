@@ -233,18 +233,16 @@ export class WorkflowService {
 
     const requiredFields: string[] = (clinicConfig.required_fields as string[]) || [];
 
+    const wasInHumanReview = patient.status === PatientStatus.HUMAN_REVIEW;
+
     // --- Step 7: If this is a nurture reply, re-process through the pipeline ---
     if (patient.status === PatientStatus.NURTURING) {
       return this.handleNurtureReply(patient, message, clinicConfig, requiredFields);
     }
 
-    // --- Step 8: If patient is in HUMAN_REVIEW, don't auto-process ---
-    if (patient.status === PatientStatus.HUMAN_REVIEW) {
-      // Just log the interaction (already done above) and wait for human to resolve
-      return { patient, action_taken: 'awaiting_human_review' };
-    }
-
-    // --- Step 9: AI extraction ---
+    // --- Step 8: AI extraction ---
+    // Human review is a staff escalation, not a WhatsApp conversation lock.
+    // Continue answering incoming messages while keeping the open review active.
     // Build conversation history for context
     const pastInteractions = await this.interactionRepo.getByPatientId(patient.id);
     const conversationHistory = pastInteractions
@@ -259,7 +257,7 @@ export class WorkflowService {
       patient.id,
     );
 
-    // --- Step 10: Handle clinical questions — NEVER answer, route to human ---
+    // --- Step 9: Handle clinical questions — NEVER answer, route to human ---
     if (aiResult.is_clinical_question) {
       await this.humanReviewService.createReview({
         patientId: patient.id,
@@ -290,7 +288,7 @@ export class WorkflowService {
       return { patient: updatedPatient, action_taken: 'clinical_question_routed_to_human' };
     }
 
-    // --- Step 11: Handle ambiguous responses ---
+    // --- Step 10: Handle ambiguous responses ---
     if (aiResult.is_ambiguous) {
       await this.humanReviewService.createReview({
         patientId: patient.id,
@@ -320,7 +318,7 @@ export class WorkflowService {
       return { patient: updatedPatient, action_taken: 'ambiguous_routed_to_human' };
     }
 
-    // --- Step 12: Handle low confidence ---
+    // --- Step 11: Handle low confidence ---
     if (aiResult.confidence < 0.5) {
       await this.humanReviewService.createReview({
         patientId: patient.id,
@@ -341,7 +339,7 @@ export class WorkflowService {
       };
     }
 
-    // --- Step 13: Merge extracted fields with pre-extracted (for forms) and existing ---
+    // --- Step 12: Merge extracted fields with pre-extracted (for forms) and existing ---
     const mergedFields = { ...preExtractedFields, ...aiResult.extracted_fields };
 
     // Merge with existing patient fields (never blank out known fields)
@@ -358,7 +356,7 @@ export class WorkflowService {
     // Reload patient after merge
     patient = (await this.patientRepo.findById(patient.id)) as PatientRow;
 
-    // --- Step 14: Send AI answer if it has one ---
+    // --- Step 13: Send AI answer if it has one ---
     if (aiResult.answer && aiResult.answer.trim().length > 0) {
       await this.messagingService.sendMessage(phone, aiResult.answer, patient.id);
       await this.interactionRepo.create({
@@ -369,7 +367,7 @@ export class WorkflowService {
       });
     }
 
-    // --- Step 15: Check missing required fields ---
+    // --- Step 14: Check missing required fields ---
     const currentFields = patient.extracted_fields || {};
     const stillMissing = requiredFields.filter(
       (f) =>
@@ -409,7 +407,9 @@ export class WorkflowService {
           },
         });
 
-        await this.patientRepo.updateStatus(patient.id, PatientStatus.INCOMPLETE);
+        if (!wasInHumanReview) {
+          await this.patientRepo.updateStatus(patient.id, PatientStatus.INCOMPLETE);
+        }
         const updatedPatient = (await this.patientRepo.findById(patient.id)) as PatientRow;
         return {
           patient: updatedPatient,
@@ -419,7 +419,7 @@ export class WorkflowService {
       }
     }
 
-    // --- Step 16: All required fields present — proceed to scoring ---
+    // --- Step 15: All required fields present — proceed to scoring ---
     const scoreResult = scoreLead(
       {
         scoring_rules: clinicConfig.scoring_rules as import('../../types').ScoringRule[],
@@ -435,7 +435,7 @@ export class WorkflowService {
     );
     patient = (await this.patientRepo.findById(patient.id)) as PatientRow;
 
-    // --- Step 17: Route based on score tier ---
+    // --- Step 16: Route based on score tier ---
     if (scoreResult.tier === ScoreTier.HIGH || scoreResult.tier === ScoreTier.MEDIUM) {
       // Create human review, notify staff, do NOT auto-promise appointment
       const reason =
@@ -473,8 +473,11 @@ export class WorkflowService {
       };
     }
 
-    // --- Step 18: LOW score → nurturing ---
-    await this.patientRepo.updateStatus(patient.id, PatientStatus.NURTURING);
+    // --- Step 17: LOW score → nurturing ---
+    // Keep a transferred patient in HUMAN_REVIEW until staff resolves it.
+    if (!wasInHumanReview) {
+      await this.patientRepo.updateStatus(patient.id, PatientStatus.NURTURING);
+    }
 
     // Send one automated nurture message
     await this.messagingService.sendMessage(phone, NURTURE_MESSAGE, patient.id);
@@ -487,7 +490,9 @@ export class WorkflowService {
 
     return {
       patient,
-      action_taken: 'scored_low_nurturing',
+      action_taken: wasInHumanReview
+        ? 'human_review_continued_low_score'
+        : 'scored_low_nurturing',
       sent_message: NURTURE_MESSAGE,
     };
   }

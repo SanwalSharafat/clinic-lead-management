@@ -90,6 +90,13 @@ export class HumanReviewService {
   }): Promise<HumanReviewRow> {
     const { patientId, reason, aiOutput } = params;
 
+    // Keep one active queue item per patient while allowing the WhatsApp
+    // conversation to continue during the review.
+    const existingReview = await this.reviewRepo.findOpenByPatientId(patientId);
+    if (existingReview) {
+      return existingReview;
+    }
+
     // 1. Create the review record
     const review = await this.reviewRepo.create({
       patient_id: patientId,
